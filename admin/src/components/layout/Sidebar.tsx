@@ -10,10 +10,10 @@ import {
   Users,
   X,
 } from "lucide-react";
-import { NavLink, useLocation } from "react-router-dom";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 
 const navItems = [
-  { title: "Dashboard", path: "/", icon: LayoutDashboard },
+  { title: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
   { title: "Users", path: "/users", icon: Users },
   { title: "Trades", path: "/trades", icon: ArrowLeftRight },
   { title: "Settings", path: "/settings", icon: Settings },
@@ -28,6 +28,7 @@ interface SidebarProps {
 
 const Sidebar = ({ collapsed, onToggle, isMobile, mobileOpen }: SidebarProps) => {
   const location = useLocation();
+  const navigate = useNavigate();
   const showLabels = isMobile ? true : !collapsed;
   const isVisible = isMobile ? mobileOpen : true;
 
@@ -138,21 +139,24 @@ const Sidebar = ({ collapsed, onToggle, isMobile, mobileOpen }: SidebarProps) =>
             </AnimatePresence>
           </button>
         )}
-        <button className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-destructive hover:bg-destructive/10 transition-colors w-full">
-          <LogOut className="h-5 w-5 flex-shrink-0" />
-          <AnimatePresence>
-            {showLabels && (
-              <motion.span
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="text-sm font-medium"
-              >
-                Logout
-              </motion.span>
-            )}
-          </AnimatePresence>
-        </button>
+       <button
+  onClick={() => navigate("/login")}
+  className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-destructive hover:bg-destructive/10 transition-colors w-full"
+>
+  <LogOut className="h-5 w-5 flex-shrink-0" />
+  <AnimatePresence>
+    {showLabels && (
+      <motion.span
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="text-sm font-medium"
+      >
+        Logout
+      </motion.span>
+    )}
+  </AnimatePresence>
+</button>
       </div>
     </motion.aside>
   );
