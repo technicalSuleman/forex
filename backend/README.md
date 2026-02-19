@@ -46,18 +46,18 @@ Server will run on `http://localhost:3000`
 
 ## API Endpoints
 
+### API Documentation
+- `GET /api-docs` - Interactive API documentation (Swagger)
+
 ### Health Check
 - `GET /health` - Check server status
 
-### User Profile
-- `GET /api/users/:userId/profile` - Get user profile
-- `PUT /api/users/:userId/profile` - Update user profile
-
-### User Stats
-- `GET /api/users/:userId/stats` - Get user trading statistics
-
-### Trading History
-- `GET /api/users/:userId/trades?limit=50` - Get trading history
+### News Module
+- `GET /api/news` - Get all news
+- `GET /api/news/:id` - Get news by ID
+- `POST /api/news` - Create news
+- `PUT /api/news/:id` - Update news
+- `DELETE /api/news/:id` - Delete news
 
 ## Project Structure
 
