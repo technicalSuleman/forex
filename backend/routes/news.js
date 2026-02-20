@@ -61,14 +61,91 @@ router.get('/', async (req, res, next) => {
         const snapshot = await newsRef.once('value');
         const news = [];
         snapshot.forEach((childSnapshot) => {
+            const val = childSnapshot.val() || {};
+            const comments = val.comments || [];
             news.push({
                 id: childSnapshot.key,
-                ...childSnapshot.val()
+                ...val,
+                likesCount: typeof val.likesCount === 'number' ? val.likesCount : 0,
+                commentsCount: Array.isArray(comments) ? comments.length : 0
             });
         });
         // Sort by createdAt descending
-        news.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+        news.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
         res.json({ success: true, data: news });
+    } catch (error) {
+        next(error);
+    }
+});
+
+/**
+ * POST /api/news/:id/like - Toggle like (body: { userId })
+ */
+router.post('/:id/like', async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const { userId } = req.body || {};
+        const newsRef = db.ref(`news/${id}`);
+        const snapshot = await newsRef.once('value');
+        if (!snapshot.exists()) {
+            const err = new Error('News not found');
+            err.status = 404;
+            throw err;
+        }
+        const val = snapshot.val() || {};
+        const likedBy = val.likedBy || {};
+        const key = userId || 'anonymous';
+        const newLikedBy = { ...likedBy };
+        if (newLikedBy[key]) {
+            delete newLikedBy[key];
+        } else {
+            newLikedBy[key] = true;
+        }
+        const likesCount = Object.keys(newLikedBy).length;
+        await newsRef.update({ likedBy: newLikedBy, likesCount, updatedAt: new Date().toISOString() });
+        const updated = (await newsRef.once('value')).val();
+        res.json({
+            success: true,
+            data: { id, ...updated, likesCount, likedBy: newLikedBy }
+        });
+    } catch (error) {
+        next(error);
+    }
+});
+
+/**
+ * POST /api/news/:id/comments - Add comment (body: { author, text })
+ */
+router.post('/:id/comments', async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const { author, text } = req.body || {};
+        if (!author || !text || !String(text).trim()) {
+            const err = new Error('Author and text are required');
+            err.status = 400;
+            throw err;
+        }
+        const newsRef = db.ref(`news/${id}`);
+        const snapshot = await newsRef.once('value');
+        if (!snapshot.exists()) {
+            const err = new Error('News not found');
+            err.status = 404;
+            throw err;
+        }
+        const val = snapshot.val() || {};
+        const comments = Array.isArray(val.comments) ? [...val.comments] : [];
+        const newComment = {
+            author: String(author).trim(),
+            text: String(text).trim(),
+            createdAt: new Date().toISOString()
+        };
+        comments.push(newComment);
+        await newsRef.update({ comments, updatedAt: new Date().toISOString() });
+        const updated = (await newsRef.once('value')).val();
+        res.status(201).json({
+            success: true,
+            data: { id, ...updated }
+        });
     } catch (error) {
         next(error);
     }
@@ -104,7 +181,18 @@ router.get('/:id', async (req, res, next) => {
         const snapshot = await newsRef.once('value');
 
         if (snapshot.exists()) {
-            res.json({ success: true, data: { id: snapshot.key, ...snapshot.val() } });
+            const val = snapshot.val() || {};
+            const comments = val.comments || [];
+            res.json({
+                success: true,
+                data: {
+                    id: snapshot.key,
+                    ...val,
+                    likesCount: typeof val.likesCount === 'number' ? val.likesCount : 0,
+                    commentsCount: Array.isArray(comments) ? comments.length : 0,
+                    comments: Array.isArray(comments) ? comments : []
+                }
+            });
         } else {
             const error = new Error('News not found');
             error.status = 404;
@@ -152,7 +240,10 @@ router.post('/', async (req, res, next) => {
             category: category || 'General',
             imageUrl: imageUrl || '',
             createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
+            updatedAt: new Date().toISOString(),
+            likesCount: 0,
+            likedBy: {},
+            comments: []
         };
 
         await newNewsRef.set(newsData);

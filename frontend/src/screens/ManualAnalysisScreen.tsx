@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
     Dimensions,
+    Keyboard,
     Platform,
     ScrollView,
     StatusBar,
@@ -12,10 +13,13 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
+import Toast from 'react-native-toast-message';
 import BottomNavBar from '../components/BottomNavBar';
+import TradingModal from '../components/TradingModal';
 
 const { width, height } = Dimensions.get('window');
-const CHART_HEIGHT = height * 0.65; // Chart screen ka 65% area lega
+const CHART_HEIGHT = height * 0.52;
+const BOTTOM_NAV_HEIGHT = 65;
 
 // --- TRADINGVIEW COLORS ---
 const COLORS = {
@@ -29,7 +33,7 @@ const COLORS = {
 };
 
 // --- 1. DATA GENERATOR (Random Walk) ---
-const generateHistory = (count) => {
+const generateHistory = (count: number) => {
   let data = [];
   let prevClose = 1950.00; // Gold/XAU Price example
   
@@ -52,15 +56,61 @@ const generateHistory = (count) => {
 
 export default function ManualAnalysisScreen() {
   const router = useRouter();
-  const scrollViewRef = useRef(null);
+  const scrollViewRef = useRef<ScrollView>(null);
 
   // --- STATE ---
-  const idCounterRef = useRef(1000); // Ensures unique IDs for new candles
+  const idCounterRef = useRef(1000);
   const [history, setHistory] = useState(generateHistory(40)); 
   const [liveCandle, setLiveCandle] = useState({
      open: 1950, close: 1950, high: 1950, low: 1950
   });
   const [selectedTimeframe, setSelectedTimeframe] = useState('1D');
+  const [tradingModalVisible, setTradingModalVisible] = useState(false);
+  const [orderProcessing, setOrderProcessing] = useState(false);
+  const [processingType, setProcessingType] = useState<'buy' | 'sell' | null>(null);
+  const [lotSize, setLotSize] = useState('0.01');
+
+  const buyOrder = async () => {
+    if (orderProcessing) return;
+    const lots = parseFloat(lotSize) || 0.01;
+    if (lots <= 0) {
+      Toast.show({ type: 'error', text1: 'Invalid lot', text2: 'Enter a valid lot size.' });
+      return;
+    }
+    setOrderProcessing(true);
+    setProcessingType('buy');
+    Keyboard.dismiss();
+    try {
+      await new Promise(r => setTimeout(r, 1200));
+      Toast.show({ type: 'success', text1: 'Buy order placed', text2: `${lots} lot(s) @ ${liveCandle.close.toFixed(2)}` });
+    } catch {
+      Toast.show({ type: 'error', text1: 'Order failed', text2: 'Please try again.' });
+    } finally {
+      setOrderProcessing(false);
+      setProcessingType(null);
+    }
+  };
+
+  const sellOrder = async () => {
+    if (orderProcessing) return;
+    const lots = parseFloat(lotSize) || 0.01;
+    if (lots <= 0) {
+      Toast.show({ type: 'error', text1: 'Invalid lot', text2: 'Enter a valid lot size.' });
+      return;
+    }
+    setOrderProcessing(true);
+    setProcessingType('sell');
+    Keyboard.dismiss();
+    try {
+      await new Promise(r => setTimeout(r, 1200));
+      Toast.show({ type: 'success', text1: 'Sell order placed', text2: `${lots} lot(s) @ ${liveCandle.close.toFixed(2)}` });
+    } catch {
+      Toast.show({ type: 'error', text1: 'Order failed', text2: 'Please try again.' });
+    } finally {
+      setOrderProcessing(false);
+      setProcessingType(null);
+    }
+  };
 
   // --- 2. LIVE TICKER SIMULATION ---
   useEffect(() => {
@@ -101,7 +151,7 @@ export default function ManualAnalysisScreen() {
   const minPrice = Math.min(...allLows);
   const range = maxPrice - minPrice || 1;
 
-  const getY = (price) => {
+  const getY = (price: number) => {
     const percentage = (price - minPrice) / range;
     // Thora padding upar neeche (10%)
     return (CHART_HEIGHT * 0.9) - (percentage * (CHART_HEIGHT * 0.8)) + (CHART_HEIGHT * 0.05);
@@ -220,6 +270,37 @@ export default function ManualAnalysisScreen() {
          <TouchableOpacity style={styles.iconBtn}><MaterialCommunityIcons name="cog-outline" size={20} color="#888" /></TouchableOpacity>
       </View>
 
+      {/* --- PLACE ORDER BAR (opens trading modal) --- */}
+      <TouchableOpacity
+        activeOpacity={0.9}
+        onPress={() => setTradingModalVisible(true)}
+        style={styles.placeOrderBar}
+      >
+        <LinearGradient
+          colors={['#1a237e', '#0d47a1']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          style={styles.placeOrderGradient}
+        >
+          <MaterialCommunityIcons name="chart-line" size={22} color="#fff" />
+          <Text style={styles.placeOrderText}>Place Order</Text>
+          <Text style={styles.placeOrderPrice}>{liveCandle.close.toFixed(2)}</Text>
+        </LinearGradient>
+      </TouchableOpacity>
+
+      {/* --- TRADING MODAL (keyboard-aware, swipe to close) --- */}
+      <TradingModal
+        visible={tradingModalVisible}
+        onClose={() => setTradingModalVisible(false)}
+        onBuy={buyOrder}
+        onSell={sellOrder}
+        lotSize={lotSize}
+        onLotSizeChange={setLotSize}
+        processing={orderProcessing}
+        processingType={processingType}
+        currentPrice={liveCandle.close}
+      />
+
       {/* --- BOTTOM NAV --- */}
       <BottomNavBar activeRoute="/manual-analysis" />
     </View>
@@ -298,5 +379,25 @@ const styles = StyleSheet.create({
   tfTextActive: { color: '#2962FF' },
   vertLine: { width: 1, height: 20, backgroundColor: COLORS.grid, marginHorizontal: 5 },
   iconBtn: { padding: 8 },
+
+  placeOrderBar: {
+    marginHorizontal: 16,
+    marginBottom: BOTTOM_NAV_HEIGHT + 8,
+    borderRadius: 16,
+    overflow: 'hidden',
+    ...Platform.select({
+      ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 8 },
+      android: { elevation: 6 },
+    }),
+  },
+  placeOrderGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    gap: 10,
+  },
+  placeOrderText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  placeOrderPrice: { color: 'rgba(255,255,255,0.9)', fontSize: 14, fontWeight: '600' },
 
 });

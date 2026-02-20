@@ -1,8 +1,10 @@
 // Backend Server for Forex AI Assistant
+const path = require('path');
 const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
-require('dotenv').config();
+// Load .env from backend folder so it works when run as "node server.js" or "node backend/server.js"
+require('dotenv').config({ path: path.join(__dirname, '.env') });
 
 // Import configurations
 const { swaggerUi, specs } = require('./config/swagger');
@@ -66,11 +68,11 @@ app.use((req, res, next) => {
 // Centralized Error Handling Middleware
 app.use(errorMiddleware);
 
-// Start server
-app.listen(PORT, () => {
-  console.log(`🚀 Backend server running on http://localhost:${PORT}`);
-  console.log(`📡 API endpoints available at http://localhost:${PORT}/api`);
-  console.log(`📝 API Documentation available at http://localhost:${PORT}/api-docs`);
+// Start server - bind to 0.0.0.0 so Android emulator (10.0.2.2) and devices on same network can connect
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Backend running on port ${PORT} (listening on all interfaces)`);
+  console.log(`  Local:    http://localhost:${PORT}/api`);
+  console.log(`  Emulator: http://10.0.2.2:${PORT}/api`);
 });
 
 module.exports = app;

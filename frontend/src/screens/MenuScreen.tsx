@@ -14,12 +14,12 @@ import {
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import { signOut, onAuthStateChanged } from 'firebase/auth';
+import { signOut } from 'firebase/auth';
+import { useSelector } from 'react-redux';
 import { auth } from '../firebaseConfig';
 import BottomNavBar from '../components/BottomNavBar';
 import StyledAlert from '../components/StyledAlert';
 import { getLogoutConfirmationAlert } from '../services/alerts';
-import { profileService } from '../services';
 import KYCScreen from './menuscreens/KYCScreen';
 import BiometricScreen from './menuscreens/BiometricScreen';
 import NotificationSettingsScreen from './menuscreens/NotificationSettingsScreen';
@@ -27,17 +27,14 @@ import CurrencyScreen from './menuscreens/CurrencyScreen';
 
 export default function MenuScreen() {
   const router = useRouter();
-  
+  const user = useSelector((s: { user?: { userName: string; userEmail: string; avatarUri: string } }) => s.user);
+  const userName = user?.userName ?? '';
+  const userEmail = user?.userEmail ?? '';
+  const avatarUri = user?.avatarUri ?? 'https://randomuser.me/api/portraits/men/75.jpg';
+
   // State
   const [showLogoutAlert, setShowLogoutAlert] = useState(false);
   const [activeScreen, setActiveScreen] = useState(null);
-  const [userName, setUserName] = useState('');
-  const [userEmail, setUserEmail] = useState('');
-  const [avatarUri, setAvatarUri] = useState('https://randomuser.me/api/portraits/men/75.jpg');
-
-  useEffect(() => {
-    loadUserProfile();
-  }, []);
 
   // Handle Android back button for modals
   useEffect(() => {
@@ -49,26 +46,6 @@ export default function MenuScreen() {
       return () => backHandler.remove();
     }
   }, [activeScreen]);
-
-  const loadUserProfile = async () => {
-    try {
-      const unsubscribe = onAuthStateChanged(auth, async (user) => {
-        if (user) {
-          setUserEmail(user.email || '');
-          const profile = await profileService.getUserProfile(user.uid);
-          if (profile) {
-            setUserName(profile.name || user.email?.split('@')[0] || 'User');
-            setAvatarUri(profile.avatar || avatarUri);
-          } else {
-            setUserName(user.email?.split('@')[0] || 'User');
-          }
-        }
-      });
-      return () => unsubscribe();
-    } catch (error) {
-      console.error('Error loading profile:', error);
-    }
-  };
 
   const handleLogout = async () => {
     try {

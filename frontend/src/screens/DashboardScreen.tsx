@@ -2,6 +2,7 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
+import { useSelector } from 'react-redux';
 import {
   Dimensions,
   Image,
@@ -14,9 +15,6 @@ import {
   View,
   ActivityIndicator,
 } from 'react-native';
-import { onAuthStateChanged } from 'firebase/auth';
-import { auth } from '../firebaseConfig';
-import { profileService } from '../services';
 import BottomNavBar from '../components/BottomNavBar';
 
 const { width } = Dimensions.get('window');
@@ -24,37 +22,10 @@ const DEFAULT_AVATAR = 'https://randomuser.me/api/portraits/men/75.jpg';
 
 export default function DashboardScreen() {
   const router = useRouter();
-  const [userName, setUserName] = useState('');
-  const [avatarUri, setAvatarUri] = useState(DEFAULT_AVATAR);
-  const [profileLoading, setProfileLoading] = useState(true);
-
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        setProfileLoading(true);
-        try {
-          const profile = await profileService.getUserProfile(user.uid);
-          if (profile) {
-            setUserName(profile.name || profile.displayName || user.email?.split('@')[0] || 'User');
-            setAvatarUri(profile.avatar || DEFAULT_AVATAR);
-          } else {
-            setUserName(user.email?.split('@')[0] || 'User');
-            setAvatarUri(DEFAULT_AVATAR);
-          }
-        } catch {
-          setUserName(user.email?.split('@')[0] || 'User');
-          setAvatarUri(DEFAULT_AVATAR);
-        } finally {
-          setProfileLoading(false);
-        }
-      } else {
-        setUserName('');
-        setAvatarUri(DEFAULT_AVATAR);
-        setProfileLoading(false);
-      }
-    });
-    return () => unsubscribe();
-  }, []);
+  const user = useSelector((s: { user?: { userName: string; avatarUri: string; profileLoaded: boolean } }) => s.user);
+  const userName = user?.userName ?? '';
+  const avatarUri = user?.avatarUri ?? DEFAULT_AVATAR;
+  const profileLoaded = user?.profileLoaded ?? false;
 
   // --- CHART STATE ---
   const [completedCandles, setCompletedCandles] = useState([
@@ -118,7 +89,7 @@ export default function DashboardScreen() {
             onPress={() => router.push('/profile')}
             activeOpacity={0.7}
         >
-            {profileLoading ? (
+            {!profileLoaded ? (
               <View style={[styles.headerAvatar, styles.avatarPlaceholder]}>
                 <ActivityIndicator size="small" color="#2962FF" />
               </View>

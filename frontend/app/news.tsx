@@ -1,5 +1,5 @@
-import NewsScreen from '../src/screens/NewsScreen';
+import NewsModule from '../src/screens/NewsModule';
 
 export default function NewsPage() {
-  return <NewsScreen />;
+  return <NewsModule />;
 }

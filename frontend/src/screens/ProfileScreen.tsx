@@ -2,6 +2,8 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { signOut, onAuthStateChanged } from 'firebase/auth';
 import { useState, useEffect } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
+import { setAvatar, setUserName } from '../store/userSlice';
 import {
   Dimensions,
   Image,
@@ -31,23 +33,19 @@ const { width, height } = Dimensions.get('window');
 
 export default function ProfileScreen() {
   const router = useRouter();
-  
+  const dispatch = useDispatch();
+  const user = useSelector((s: { user?: { userName: string; userEmail: string; avatarUri: string; userId: string; userCreatedAt: string; userStats: { balance: number; profit: number; winRate: number } } }) => s.user);
+  const userName = user?.userName ?? '';
+  const userEmail = user?.userEmail ?? '';
+  const avatarUri = user?.avatarUri ?? 'https://randomuser.me/api/portraits/men/75.jpg';
+  const userId = user?.userId ?? '';
+  const userCreatedAt = user?.userCreatedAt ?? '';
+  const userStats = user?.userStats ?? { balance: 0, profit: 0, winRate: 0 };
+
   // --- STATE MANAGEMENT ---
   const [showLogoutAlert, setShowLogoutAlert] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  
-  // Profile Data States
-  const [userName, setUserName] = useState('');
-  const [userEmail, setUserEmail] = useState('');
-  const [avatarUri, setAvatarUri] = useState('https://randomuser.me/api/portraits/men/75.jpg');
-  const [userId, setUserId] = useState('');
-  const [userCreatedAt, setUserCreatedAt] = useState('');
-  const [userStats, setUserStats] = useState({
-    balance: 0,
-    profit: 0,
-    winRate: 0,
-  });
   
   // Navigation/Modal State
   const [activeScreen, setActiveScreen] = useState(null);
@@ -59,18 +57,12 @@ export default function ProfileScreen() {
 
   // --- FUNCTIONS ---
 
-  // Load user profile data
+  // Auth check + load KYC/2FA only (profile/avatar from Redux via ProfileLoader)
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        setUserId(user.uid);
-        setUserEmail(user.email || '');
-        await loadUserProfile(user.uid, user);
-      } else {
-        router.replace('/');
-      }
+    const unsubscribe = onAuthStateChanged(auth, async (u) => {
+      if (u) await loadProfileExtras(u.uid);
+      else router.replace('/');
     });
-
     return () => unsubscribe();
   }, []);
 
@@ -85,42 +77,18 @@ export default function ProfileScreen() {
     }
   }, [activeScreen]);
 
-  const loadUserProfile = async (uid, authUser?: { metadata?: { creationTime?: string } }) => {
+  const loadProfileExtras = async (uid: string) => {
     try {
       setLoading(true);
-      const profile = await profileService.getUserProfile(uid);
-      const stats = await profileService.getUserStats(uid);
-      
-      if (profile) {
-        setUserName(profile.name || profile.displayName || userEmail?.split('@')[0] || 'User');
-        setAvatarUri(profile.avatar || avatarUri);
-        setUserCreatedAt(profile.createdAt || authUser?.metadata?.creationTime || '');
-      } else {
-        // Create profile if doesn't exist
-        const newProfile = await profileService.createUserProfile(uid, {
-          name: userEmail?.split('@')[0] || 'User',
-          email: userEmail,
-          avatar: avatarUri,
-        });
-        setUserName(newProfile.name);
-        setUserCreatedAt(newProfile.createdAt || authUser?.metadata?.creationTime || '');
-      }
-      
-      setUserStats({
-        balance: stats.balance || 0,
-        profit: stats.profit || 0,
-        winRate: stats.winRate || 0,
-      });
-
-      const kycStatus = await menuService.getKYCStatus(uid);
+      const [kycStatus, settings] = await Promise.all([
+        menuService.getKYCStatus(uid),
+        menuService.getUserSettings(uid),
+      ]);
       setKycVerified(kycStatus?.status === 'approved');
       setKycStatus(kycStatus);
-
-      const settings = await menuService.getUserSettings(uid);
       setTwoFactorEnabled(settings?.twoFactor || false);
     } catch (error) {
-      console.error('Error loading profile:', error);
-      setUserName(userEmail?.split('@')[0] || 'User');
+      console.error('Error loading profile extras:', error);
     } finally {
       setLoading(false);
     }
@@ -153,8 +121,8 @@ export default function ProfileScreen() {
         name: name.trim(),
         avatar: avatar,
       });
-      setUserName(name.trim());
-      setAvatarUri(avatar);
+      dispatch(setUserName(name.trim()));
+      dispatch(setAvatar(avatar));
       setActiveScreen(null);
       Toast.show({ type: 'success', text1: 'Profile updated', text2: 'Your changes have been saved.' });
     } catch (error) {
