@@ -14,7 +14,7 @@ import {
   View,
   ActivityIndicator,
 } from 'react-native';
-import { onAuthStateChanged } from 'firebase/auth';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { auth } from '../firebaseConfig';
 import { profileService } from '../services';
 import BottomNavBar from '../components/BottomNavBar';
@@ -30,10 +30,20 @@ export default function DashboardScreen() {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        setProfileLoading(true);
-        try {
-          const profile = await profileService.getUserProfile(user.uid);
+      if (!user) {
+        setUserName('');
+        setAvatarUri(DEFAULT_AVATAR);
+        setProfileLoading(false);
+        return;
+      }
+      if (!user.emailVerified) {
+        await signOut(auth);
+        router.replace('/login');
+        return;
+      }
+      setProfileLoading(true);
+      try {
+        const profile = await profileService.getUserProfile(user.uid);
           if (profile) {
             setUserName(profile.name || profile.displayName || user.email?.split('@')[0] || 'User');
             setAvatarUri(profile.avatar || DEFAULT_AVATAR);
@@ -47,14 +57,9 @@ export default function DashboardScreen() {
         } finally {
           setProfileLoading(false);
         }
-      } else {
-        setUserName('');
-        setAvatarUri(DEFAULT_AVATAR);
-        setProfileLoading(false);
-      }
     });
     return () => unsubscribe();
-  }, []);
+  }, [router]);
 
   // --- CHART STATE ---
   const [completedCandles, setCompletedCandles] = useState([

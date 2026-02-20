@@ -107,6 +107,32 @@ app.get('/api/users/:userId/stats', async (req, res) => {
   }
 });
 
+// News/Feed Routes (same data as frontend newsService)
+app.get('/api/news', async (req, res) => {
+  try {
+    const category = req.query.category || '';
+    const limit = parseInt(req.query.limit) || 50;
+    const newsRef = db.ref('news');
+    const snapshot = await newsRef.once('value');
+    if (!snapshot.exists()) {
+      return res.json({ success: true, data: [] });
+    }
+    const data = snapshot.val();
+    let items = Object.keys(data)
+      .map((key) => ({ id: key, ...data[key] }))
+      .filter((item) => item.createdAt)
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+      .slice(0, limit);
+    if (category && category !== 'All') {
+      const norm = (s) => (s || '').replace(/\s/g, '');
+      items = items.filter((item) => norm(item.pair) === norm(category));
+    }
+    res.json({ success: true, data: items });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 // Trading History Routes
 app.get('/api/users/:userId/trades', async (req, res) => {
   try {

@@ -13,10 +13,13 @@ export interface CloudinaryUploadResult {
 
 export type UploadProgressCallback = (percent: number) => void;
 
+export type CloudinaryUploadOptions = { folder?: string };
+
 export async function uploadImageToCloudinary(
   uri: string,
   fileName = 'avatar.jpg',
-  onProgress?: UploadProgressCallback
+  onProgress?: UploadProgressCallback,
+  options?: CloudinaryUploadOptions
 ): Promise<string> {
   if (!CLOUDINARY_CLOUD_NAME || CLOUDINARY_CLOUD_NAME === 'your_cloud_name') {
     throw new Error(
@@ -29,43 +32,47 @@ export async function uploadImageToCloudinary(
     );
   }
 
+  const folder = options?.folder ?? CLOUDINARY_FOLDER;
+
   const formData = new FormData();
+  formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+  formData.append('folder', folder);
   formData.append('file', {
     uri,
-    type: 'image/jpeg',
     name: fileName,
+    type: 'image/jpeg',
   } as unknown as Blob);
-  formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
-  formData.append('folder', CLOUDINARY_FOLDER);
 
-  return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    const url = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`;
+  const url = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`;
 
-    xhr.upload.addEventListener('progress', (e) => {
-      if (e.lengthComputable && onProgress) {
-        const percent = Math.round((e.loaded / e.total) * 100);
-        onProgress(percent);
-      }
-    });
-
-    xhr.addEventListener('load', () => {
-      if (xhr.status >= 200 && xhr.status < 300) {
-        try {
-          const result: CloudinaryUploadResult = JSON.parse(xhr.responseText);
-          resolve(result.secure_url);
-        } catch {
-          reject(new Error('Invalid response from Cloudinary'));
-        }
-      } else {
-        reject(new Error(`Cloudinary upload failed: ${xhr.responseText || xhr.statusText}`));
-      }
-    });
-
-    xhr.addEventListener('error', () => reject(new Error('Network error during upload')));
-    xhr.addEventListener('abort', () => reject(new Error('Upload aborted')));
-
-    xhr.open('POST', url);
-    xhr.send(formData);
+  const response = await fetch(url, {
+    method: 'POST',
+    body: formData,
+    headers: {
+      Accept: 'application/json',
+    },
   });
+
+  if (!response.ok) {
+    const text = await response.text();
+    let message = `Upload failed (${response.status}).`;
+    try {
+      const json = JSON.parse(text);
+      const errMsg = json?.error?.message ?? json?.message ?? text;
+      if (typeof errMsg === 'string' && (errMsg.toLowerCase().includes('whitelisted') || errMsg.includes('unsigned'))) {
+        message = 'Cloudinary preset must allow unsigned uploads. In Cloudinary: Settings → Upload → your preset → set Signing mode to "Unsigned".';
+      } else {
+        message = errMsg;
+      }
+    } catch {
+      message = text || message;
+    }
+    throw new Error(message);
+  }
+
+  const result: CloudinaryUploadResult = await response.json();
+  if (result.secure_url) {
+    return result.secure_url;
+  }
+  throw new Error('Invalid response from Cloudinary');
 }

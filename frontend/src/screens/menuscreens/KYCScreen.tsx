@@ -1,4 +1,4 @@
-import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useState, useEffect } from 'react';
 import {
@@ -13,8 +13,10 @@ import {
   Alert,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import Toast from 'react-native-toast-message';
 import { auth } from '../../firebaseConfig';
 import { menuService } from '../../services';
+import { uploadImageToCloudinary } from '../../services/cloudinaryUpload';
 
 export default function KYCScreen() {
   const [loading, setLoading] = useState(true);
@@ -56,7 +58,7 @@ export default function KYCScreen() {
     }
 
     let result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ['images'],
       allowsEditing: true,
       aspect: type === 'selfie' ? [1, 1] : [4, 3],
       quality: 0.8,
@@ -76,28 +78,40 @@ export default function KYCScreen() {
       return;
     }
 
+    const user = auth.currentUser;
+    if (!user) {
+      Toast.show({ type: 'error', text1: 'You must be logged in' });
+      return;
+    }
+
     try {
       setSubmitting(true);
-      const user = auth.currentUser;
-      if (!user) return;
+      Toast.show({ type: 'info', text1: 'Uploading documents...' });
+
+      const [frontUrl, backUrl, selfieUrl] = await Promise.all([
+        uploadImageToCloudinary(frontIdImage, `kyc-front-${user.uid}.jpg`, undefined, { folder: 'kyc' }),
+        uploadImageToCloudinary(backIdImage, `kyc-back-${user.uid}.jpg`, undefined, { folder: 'kyc' }),
+        uploadImageToCloudinary(selfieImage, `kyc-selfie-${user.uid}.jpg`, undefined, { folder: 'kyc' }),
+      ]);
 
       const kycData = {
         fullName,
         idNumber,
         address,
         documents: {
-          frontId: frontIdImage, // In production, upload to Firebase Storage first
-          backId: backIdImage,
-          selfie: selfieImage,
+          frontId: frontUrl,
+          backId: backUrl,
+          selfie: selfieUrl,
         },
       };
 
       await menuService.submitKYC(user.uid, kycData);
-      Alert.alert('Success', 'KYC documents submitted successfully. We will review and get back to you.');
+      Toast.show({ type: 'success', text1: 'KYC submitted', text2: 'We will review and get back to you.' });
       await loadKYCStatus();
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Error submitting KYC:', error);
-      Alert.alert('Error', 'Failed to submit KYC documents. Please try again.');
+      const message = error instanceof Error ? error.message : 'Failed to submit KYC documents.';
+      Toast.show({ type: 'error', text1: 'Submission failed', text2: message });
     } finally {
       setSubmitting(false);
     }

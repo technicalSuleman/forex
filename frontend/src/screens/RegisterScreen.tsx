@@ -69,10 +69,21 @@ export default function RegisterScreen() {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
-      await sendEmailVerification(user, {
-        url: 'https://fyp-ai-assistant-b373d.firebaseapp.com/__/auth/action',
-        handleCodeInApp: false,
-      });
+      let verificationSent = false;
+      try {
+        await sendEmailVerification(user);
+        verificationSent = true;
+      } catch (verifyErr: unknown) {
+        const ve = verifyErr as { code?: string; message?: string };
+        console.warn('Send verification email failed:', ve?.code, ve?.message);
+        if (ve?.code === 'auth/too-many-requests') {
+          Toast.show({
+            type: 'info',
+            text1: 'Verification email limit',
+            text2: 'Try resending from Profile after login.',
+          });
+        }
+      }
 
       try {
         await set(ref(database, 'users/' + user.uid), {
@@ -97,11 +108,23 @@ export default function RegisterScreen() {
       }
 
       setLoading(false);
-      Toast.show({ type: 'success', text1: 'Account created', text2: 'Verification email sent. Redirecting to login...' });
+      if (verificationSent) {
+        Toast.show({
+          type: 'success',
+          text1: 'Account created',
+          text2: 'Verification email sent. Check your inbox, then log in.',
+        });
+      } else {
+        Toast.show({
+          type: 'success',
+          text1: 'Account created',
+          text2: 'You can resend the verification email from Profile after login.',
+        });
+      }
       setEmail('');
       setPassword('');
       setConfirmPassword('');
-      setTimeout(() => router.replace('/login'), 1500);
+      setTimeout(() => router.replace('/login'), 2000);
     } catch (err: unknown) {
       setLoading(false);
       const error = err as { code?: string; message?: string };

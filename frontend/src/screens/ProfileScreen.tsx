@@ -56,23 +56,30 @@ export default function ProfileScreen() {
   const [kycVerified, setKycVerified] = useState(false);
   const [kycStatus, setKycStatus] = useState(null);
   const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
+  const [emailVerified, setEmailVerified] = useState(true);
 
   // --- FUNCTIONS ---
 
   // Load user profile data
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        setUserId(user.uid);
-        setUserEmail(user.email || '');
-        await loadUserProfile(user.uid, user);
-      } else {
+      if (!user) {
         router.replace('/');
+        return;
       }
+      if (!user.emailVerified) {
+        await signOut(auth);
+        Toast.show({ type: 'error', text1: 'Verify your email', text2: 'Please verify your email before using the app.' });
+        router.replace('/login');
+        return;
+      }
+      setUserId(user.uid);
+      setUserEmail(user.email || '');
+      await loadUserProfile(user.uid, user);
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [router]);
 
   // Handle Android back button for modals
   useEffect(() => {
@@ -85,9 +92,10 @@ export default function ProfileScreen() {
     }
   }, [activeScreen]);
 
-  const loadUserProfile = async (uid, authUser?: { metadata?: { creationTime?: string } }) => {
+  const loadUserProfile = async (uid, authUser?: { emailVerified?: boolean; metadata?: { creationTime?: string } }) => {
     try {
       setLoading(true);
+      if (authUser?.emailVerified !== undefined) setEmailVerified(authUser.emailVerified);
       const profile = await profileService.getUserProfile(uid);
       const stats = await profileService.getUserStats(uid);
       
@@ -213,6 +221,13 @@ export default function ProfileScreen() {
             kycVerified={kycVerified}
             kycStatus={kycStatus}
             twoFactorEnabled={twoFactorEnabled}
+            emailVerified={emailVerified}
+            onResendVerificationEmail={async () => {
+              const user = auth.currentUser;
+              if (!user) return;
+              const { sendEmailVerification } = await import('firebase/auth');
+              await sendEmailVerification(user);
+            }}
             onOpenSecurity={() => setActiveScreen('security')}
           />
         );

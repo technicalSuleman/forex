@@ -3,7 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { useRouter } from 'expo-router';
-import { sendPasswordResetEmail, signInWithEmailAndPassword } from 'firebase/auth';
+import { onAuthStateChanged, sendPasswordResetEmail, signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { ref, set, update } from 'firebase/database';
 import { useEffect, useState } from 'react';
 import {
@@ -57,6 +57,16 @@ export default function LoginScreen() {
     checkBiometricAvailability();
     loadLastLoggedInUser();
   }, []);
+
+  // Route protection: if already logged in, redirect to dashboard
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        router.replace('/dashboard');
+      }
+    });
+    return () => unsubscribe();
+  }, [router]);
 
   const checkBiometricAvailability = async () => {
     try {
@@ -123,7 +133,18 @@ export default function LoginScreen() {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
-      // 4. Update last login in database and persist for biometric (non-blocking)
+      if (!user.emailVerified) {
+        await signOut(auth);
+        setLoading(false);
+        Toast.show({
+          type: 'error',
+          text1: 'Verify your email first',
+          text2: 'Check your inbox for the verification link, then login again. You can resend from the link below the register form.',
+        });
+        return;
+      }
+
+      // Update last login in database and persist for biometric (non-blocking)
       if (user) {
         const updateDatabase = async () => {
           try {
@@ -133,19 +154,19 @@ export default function LoginScreen() {
               email: user.email || email,
               uid: user.uid
             });
-          } catch (dbError: any) {
+          } catch (dbError: unknown) {
             try {
               await set(ref(database, 'users/' + user.uid), {
                 email: user.email || email,
                 uid: user.uid,
                 createdAt: new Date().toISOString(),
                 accountType: 'free',
-                emailVerified: user.emailVerified || false,
+                emailVerified: true,
                 lastLogin: new Date().toISOString(),
                 profileComplete: false,
                 notificationsEnabled: true
               });
-            } catch (createError) {
+            } catch {
               console.log('Database update failed, but login successful');
             }
           }
@@ -155,7 +176,7 @@ export default function LoginScreen() {
             await AsyncStorage.setItem('lastLoggedInEmail', email);
             await AsyncStorage.setItem('lastLoggedInUserId', user.uid);
             await AsyncStorage.setItem('biometricEnabled', settings?.biometric ? 'true' : 'false');
-          } catch (e) {
+          } catch {
             await AsyncStorage.setItem('lastLoggedInEmail', email);
             await AsyncStorage.setItem('lastLoggedInUserId', user.uid);
             await AsyncStorage.setItem('biometricEnabled', 'false');
@@ -163,7 +184,7 @@ export default function LoginScreen() {
         };
         updateDatabase();
       }
-      
+
       setLoading(false);
       Toast.show({ type: 'success', text1: 'Login successful', text2: 'Redirecting to dashboard...' });
       setTimeout(() => router.replace('/dashboard'), 1500);

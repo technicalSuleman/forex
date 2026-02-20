@@ -1,7 +1,9 @@
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { Platform, StyleSheet, Text, TouchableOpacity, View, ScrollView, Alert } from 'react-native';
+import { useState } from 'react';
+import { Platform, StyleSheet, Text, TouchableOpacity, View, ScrollView, Alert, ActivityIndicator } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Clipboard from 'expo-clipboard';
+import Toast from 'react-native-toast-message';
 
 type KYCStatus = 'not_started' | 'pending' | 'approved' | 'rejected';
 interface KYCStatusData {
@@ -17,6 +19,8 @@ interface AccountDetailsScreenProps {
   kycVerified?: boolean;
   kycStatus?: KYCStatusData | null;
   twoFactorEnabled?: boolean;
+  emailVerified?: boolean;
+  onResendVerificationEmail?: () => Promise<void>;
   onOpenSecurity?: () => void;
 }
 
@@ -45,8 +49,11 @@ export default function AccountDetailsScreen({
   kycVerified = false,
   kycStatus,
   twoFactorEnabled = false,
+  emailVerified = true,
+  onResendVerificationEmail,
   onOpenSecurity,
 }: AccountDetailsScreenProps) {
+  const [resendLoading, setResendLoading] = useState(false);
   const formatDate = (dateString?: string) => {
     if (!dateString) return 'N/A';
     try {
@@ -156,6 +163,33 @@ export default function AccountDetailsScreen({
           onCopy={() => copyToClipboard(userEmail, 'Email')}
           isEmail
         />
+        {!emailVerified && onResendVerificationEmail && (
+          <View style={styles.emailVerifyRow}>
+            <Ionicons name="warning-outline" size={18} color="#FFA726" />
+            <Text style={styles.emailVerifyText}>Email not verified</Text>
+            <TouchableOpacity
+              style={styles.resendVerifyBtn}
+              onPress={async () => {
+                setResendLoading(true);
+                try {
+                  await onResendVerificationEmail();
+                  Toast.show({ type: 'success', text1: 'Email sent', text2: 'Check your inbox and spam.' });
+                } catch (e) {
+                  Toast.show({ type: 'error', text1: 'Could not send', text2: 'Try again later.' });
+                } finally {
+                  setResendLoading(false);
+                }
+              }}
+              disabled={resendLoading}
+            >
+              {resendLoading ? (
+                <ActivityIndicator size="small" color="#2962FF" />
+              ) : (
+                <Text style={styles.resendVerifyBtnText}>Resend verification email</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
 
       <View style={styles.section}>
@@ -343,6 +377,36 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 1,
     marginBottom: 15,
+  },
+  emailVerifyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    backgroundColor: 'rgba(255, 167, 38, 0.08)',
+    borderRadius: 12,
+    padding: 12,
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 167, 38, 0.25)',
+  },
+  emailVerifyText: {
+    color: '#FFA726',
+    fontSize: 13,
+    marginLeft: 8,
+    flex: 1,
+  },
+  resendVerifyBtn: {
+    marginTop: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    backgroundColor: 'rgba(41, 98, 255, 0.2)',
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+  },
+  resendVerifyBtnText: {
+    color: '#2962FF',
+    fontSize: 13,
+    fontWeight: '600',
   },
   infoCard: {
     backgroundColor: '#181818',
