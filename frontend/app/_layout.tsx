@@ -6,7 +6,8 @@ const screenOptions = {
   headerShown: false,
   contentStyle: { backgroundColor: '#000000' },
   animation: 'fade' as const,
-  animationDuration: 200,
+  animationDuration: 150,
+  statusBarStyle: 'light' as const,
 };
 
 export default function RootLayout() {

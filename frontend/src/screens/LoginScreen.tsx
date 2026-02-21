@@ -58,10 +58,10 @@ export default function LoginScreen() {
     loadLastLoggedInUser();
   }, []);
 
-  // Route protection: if already logged in, redirect to dashboard
+  // Route protection: only redirect verified users to dashboard
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (user) {
+      if (user && user.emailVerified) {
         router.replace('/dashboard');
       }
     });
@@ -319,7 +319,7 @@ export default function LoginScreen() {
 
                 <View style={styles.footerSection}>
                   <Text style={styles.footerText}>Don't have an account? </Text>
-                  <TouchableOpacity onPress={() => router.replace('/register')}>
+                  <TouchableOpacity onPress={() => router.push('/register')}>
                     <Text style={styles.linkText}>Register</Text>
                   </TouchableOpacity>
                 </View>

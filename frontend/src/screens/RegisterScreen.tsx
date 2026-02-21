@@ -148,7 +148,7 @@ export default function RegisterScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: '#000000' }]}>
       <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
       <ImageBackground source={bgImage} style={styles.backgroundImage} resizeMode="cover">
         <LinearGradient
